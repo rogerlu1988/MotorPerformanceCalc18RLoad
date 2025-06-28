@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>18Ω Load Performance Calculator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .calculator {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .input-field {
+            flex: 1;
+            min-width: 200px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .result-card {
+            background-color: #e8f4fc;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .result-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .result-label {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        .chart-container {
+            height: 400px;
+            margin-top: 40px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: none;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            background-color: #3498db;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>18Ω Load Performance Calculator</h1>
+    
+    <div class="calculator">
+        <div class="input-group">
+            <div class="input-field">
+                <label for="rpm">RPM</label>
+                <input type="range" id="rpm" min="1000" max="12000" step="100" value="5000">
+                <input type="number" id="rpm-value" min="1000" max="12000" step="100" value="5000">
+            </div>
+            <div class="input-field">
+                <label for="resistance">Load Resistance (Ω)</label>
+                <input type="number" id="resistance" value="18" readonly>
+            </div>
+        </div>
+        
+        <div class="results">
+            <div class="result-card">
+                <div class="result-value" id="voltage">0</div>
+                <div class="result-label">Voltage (V)</div>
+            </div>
+            <div class="result-card">
+                <div class="result-value" id="current">0</div>
+                <div class="result-label">Current (A)</div>
+            </div>
+            <div class="result-card">
+                <div class="result-value" id="power">0</div>
+                <div class="result-label">Power (W)</div>
+            </div>
+            <div class="result-card">
+                <div class="result-value" id="torque">0</div>
+                <div class="result-label">Torque (N·m)</div>
+            </div>
+            <div class="result-card">
+                <div class="result-value" id="efficiency">0</div>
+                <div class="result-label">Efficiency (%)</div>
+            </div>
+        </div>
+        
+        <div class="warning" id="warning" style="display: none;">
+            <strong>Warning:</strong> RPMs above 9,000 are extrapolated and may exceed practical limits. Verify with physical testing.
+        </div>
+    </div>
+    
+    <div class="tabs">
+        <button class="tab active" onclick="openTab(event, 'voltage-chart')">Voltage vs RPM</button>
+        <button class="tab" onclick="openTab(event, 'power-chart')">Power vs RPM</button>
+        <button class="tab" onclick="openTab(event, 'torque-chart')">Torque vs RPM</button>
+        <button class="tab" onclick="openTab(event, 'efficiency-chart')">Efficiency Map</button>
+    </div>
+    
+    <div id="voltage-chart" class="tab-content active">
+        <div class="chart-container" id="voltageChart"></div>
+    </div>
+    
+    <div id="power-chart" class="tab-content">
+        <div class="chart-container" id="powerChart"></div>
+    </div>
+    
+    <div id="torque-chart" class="tab-content">
+        <div class="chart-container" id="torqueChart"></div>
+    </div>
+    
+    <div id="efficiency-chart" class="tab-content">
+        <div class="chart-container" id="efficiencyChart"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // DOM Elements
+        const rpmSlider = document.getElementById('rpm');
+        const rpmValue = document.getElementById('rpm-value');
+        const resistanceInput = document.getElementById('resistance');
+        
+        // Result Elements
+        const voltageResult = document.getElementById('voltage');
+        const currentResult = document.getElementById('current');
+        const powerResult = document.getElementById('power');
+        const torqueResult = document.getElementById('torque');
+        const efficiencyResult = document.getElementById('efficiency');
+        const warningBox = document.getElementById('warning');
+        
+        // Chart Variables
+        let voltageChart, powerChart, torqueChart, efficiencyChart;
+        
+        // Sync slider and number input
+        rpmSlider.addEventListener('input', function() {
+            rpmValue.value = this.value;
+            calculate();
+        });
+        
+        rpmValue.addEventListener('input', function() {
+            rpmSlider.value = this.value;
+            calculate();
+        });
+        
+        // Calculation function
+        function calculate() {
+            const rpm = parseFloat(rpmValue.value);
+            const R = parseFloat(resistanceInput.value);
+            
+            // Show warning for high RPM
+            if (rpm > 9000) {
+                warningBox.style.display = 'block';
+            } else {
+                warningBox.style.display = 'none';
+            }
+            
+            // Calculate parameters
+            const V = 0.0037 * rpm + 4.1;  // Voltage formula
+            const I = V / R;                // Ohm's Law
+            const P = (V * V) / R;         // Power formula
+            const T = (P * 60) / (2 * Math.PI * rpm); // Torque formula
+            const eff = 0.85 * (P / (P + 5)); // Simplified efficiency model
+            
+            // Update results
+            voltageResult.textContent = V.toFixed(2);
+            currentResult.textContent = I.toFixed(2);
+            powerResult.textContent = P.toFixed(2);
+            torqueResult.textContent = T.toFixed(4);
+            efficiencyResult.textContent = (eff * 100).toFixed(1);
+            
+            // Update charts
+            updateCharts();
+        }
+        
+        // Tab functionality
+        function openTab(evt, tabName) {
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+            
+            const tabs = document.getElementsByClassName('tab');
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+        
+        // Initialize charts
+        function initCharts() {
+            // Common chart options
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'RPM'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: ''
+                        }
+                    }
+                }
+            };
+            
+            // Voltage Chart
+            const voltageCtx = document.getElementById('voltageChart').getContext('2d');
+            voltageChart = new Chart(voltageCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [{
+                    label: 'Voltage (V)',
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                }]},
+                options: {
+                    ...chartOptions,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Voltage vs RPM'
+                        }
+                    }
+                }
+            });
+            
+            // Power Chart
+            const powerCtx = document.getElementById('powerChart').getContext('2d');
+            powerChart = new Chart(powerCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [{
+                    label: 'Power (W)',
+                    borderColor: '#2ecc71',
+                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                }]},
+                options: {
+                    ...chartOptions,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Power vs RPM'
+                        }
+                    }
+                }
+            });
+            
+            // Torque Chart
+            const torqueCtx = document.getElementById('torqueChart').getContext('2d');
+            torqueChart = new Chart(torqueCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [{
+                    label: 'Torque (N·m)',
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                }]},
+                options: {
+                    ...chartOptions,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Torque vs RPM'
+                        }
+                    }
+                }
+            });
+            
+            // Efficiency Chart
+            const efficiencyCtx = document.getElementById('efficiencyChart').getContext('2d');
+            efficiencyChart = new Chart(efficiencyCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [{
+                    label: 'Efficiency (%)',
+                    borderColor: '#9b59b6',
+                    backgroundColor: 'rgba(155, 89, 182, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                }]},
+                options: {
+                    ...chartOptions,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Efficiency vs RPM'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update chart data
+        function updateCharts() {
+            const rpm = parseFloat(rpmValue.value);
+            const R = parseFloat(resistanceInput.value);
+            
+            // Generate data points
+            const labels = [];
+            const voltageData = [];
+            const powerData = [];
+            const torqueData = [];
+            const efficiencyData = [];
+            
+            for (let rpmVal = 1000; rpmVal <= 12000; rpmVal += 500) {
+                labels.push(rpmVal);
+                const V = 0.0037 * rpmVal + 4.1;
+                const P = (V * V) / R;
+                const T = (P * 60) / (2 * Math.PI * rpmVal);
+                const eff = 0.85 * (P / (P + 5));
+                
+                voltageData.push(V);
+                powerData.push(P);
+                torqueData.push(T);
+                efficiencyData.push(eff * 100);
+            }
+            
+            // Update charts
+            voltageChart.data.labels = labels;
+            voltageChart.data.datasets[0].data = voltageData;
+            voltageChart.update();
+            
+            powerChart.data.labels = labels;
+            powerChart.data.datasets[0].data = powerData;
+            powerChart.update();
+            
+            torqueChart.data.labels = labels;
+            torqueChart.data.datasets[0].data = torqueData;
+            torqueChart.update();
+            
+            efficiencyChart.data.labels = labels;
+            efficiencyChart.data.datasets[0].data = efficiencyData;
+            efficiencyChart.update();
+        }
+        
+        // Initialize
+        window.onload = function() {
+            initCharts();
+            calculate();
+        };
+    </script>
+</body>
+</html>
