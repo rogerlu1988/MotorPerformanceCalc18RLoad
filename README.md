@@ -29,6 +29,7 @@ This web-based application calculates and visualizes motor performance under an 
 
 * HTML / CSS / JavaScript
 * [Chart.js](https://www.chartjs.org/) for data visualization
+* npm install chart.js
 
 ### License
 
